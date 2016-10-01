@@ -1,8 +1,9 @@
-#przystanek.py
+#pyBusstop.py
 import sys
 import urllib.request as rq
 from lxml import etree
 from prettytable import PrettyTable
+from datetime import datetime
 
 classtime = "'first col_godzina'"
 classnumber = "'linia_autobus_bez_ikony'"
@@ -23,8 +24,7 @@ class BusSchedule:
 		tree = etree.parse(url, recoveryon)
 		root = tree.getroot()
 		
-		lefttimes = []
-		buses = []
+		lefttimes, buses = [], []
 		
 		for lefttime in root.xpath('//td[@class={}]'.format(classtime)):
 			lefttimes.append(lefttime.text)
@@ -50,36 +50,64 @@ class BusSchedule:
 	def headPrint(func):
 		def wrap(self, timetable):
 			if self.bus is not False:
-				print("Rozkład jazdy komunikacji miejskiej z przystanku o numerze: {:^10} \n\nFiltr dla lini: {:>5}\n".format(self.post, self.bus))
+				print("Rozkład jazdy komunikacji miejskiej z przystanku o numerze: {:^10} \n \
+					  \nFiltr dla lini: {:>5}\n".format(self.post, self.bus))
 			else: 
-				print("Rozkład jazdy komunikacji miejskiej z przystanku o numerze: {:^10}\n".format(self.post))
+				print("Rozkład jazdy komunikacji miejskiej z przystanku o numerze: {:^10}\n" \
+					  .format(self.post))
 			return func(self, timetable)
 		return wrap
 		
 	@headPrint
 	def printSchedule(self, timetable):
+		sortedkeys = sorted(timetable)
+		currenthour = str(datetime.now().hour)
+		currenthour = "15"
+		if len(sortedkeys)>0:
+			if currenthour <= sortedkeys[0]:
+				pass
+			else:
+				for key in sortedkeys:
+					if key[0:2] < currenthour:
+						sortedkeys = sortedkeys[1:]
+						sortedkeys.append(key)
+		
 		if self.table:
 			table = PrettyTable(['Godzina', 'Linie'])
-			for key in sorted(timetable):
+			for key in sortedkeys:
 				if self.bus in timetable[key] or self.bus == False:
 					table.add_row([key, ', '.join(timetable[key])])
 			print(table)
 		else:
-			for key in sorted(timetable):
+			for key in sortedkeys:
 				if self.bus in timetable[key] or self.bus == False:
 					print(" {:10} - {:>10}".format(key, ', '.join(timetable[key])))
 		return 0
 		
 	def	takeBusList(self):
 		buslist = rq.urlopen("http://komunikacja.iwroclaw.pl/Rozklady_jazdy_MPK_we_Wroclawiu")
-		return ["A", "125", "B"]
+		recoveryon = etree.XMLParser(recover=True)
+		tree = etree.parse(buslist, recoveryon)
+		root = tree.getroot()
+		buses, trams = [], []
+	
+		for bus in root.xpath('//ul[@class="autobusy_list"]/li/a'):
+			buses.append(bus.text)
+		for tram in root.xpath('//ul[@class="tramwaje_list"]/li/a'):
+			trams.append(tram.text)
+		return {"buses":buses, "trams":trams}
 		
 	def setBus(self, bus):
 		self.bus=bus.upper()
-		if self.bus in self.takeBusList():
+		buslist = self.takeBusList()
+		if self.bus in buslist["buses"]:
+			self.bustype="bus"
+			return 0
+		elif self.bus in buslist["trams"]:
+			self.bustuype="tram"
 			return 0
 		else:
-			print("Niema takiego autobusu!")
+			print("Nie ma takiej lini!")
 			sys.exit()
 		
 	def setPost(self, post):
