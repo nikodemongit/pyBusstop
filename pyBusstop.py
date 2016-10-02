@@ -10,7 +10,7 @@ classnumber = "'linia_autobus_bez_ikony'"
 needhelp = False
 
 class BusSchedule:
-	def __init__(self, url=0, post=0, bus=0, table=False):
+	def __init__(self, url=0, post=0, bus=0, table=True):
 		self.url=url
 		self.post=post
 		self.bus=bus
@@ -27,8 +27,11 @@ class BusSchedule:
 		lefttimes, buses = [], []
 		
 		for lefttime in root.xpath('//td[@class={}]'.format(classtime)):
-			lefttimes.append(lefttime.text)
-	
+			lefttime = lefttime.text
+			if len(lefttime) == 4:
+				lefttimes.append("0"+lefttime)
+			else:
+				lefttimes.append(lefttime)
 		for bus in root.xpath('//a[@class={}]'.format(classnumber)):
 			buses.append(bus.text.lstrip('\t\n'))
 
@@ -62,7 +65,6 @@ class BusSchedule:
 	def printSchedule(self, timetable):
 		sortedkeys = sorted(timetable)
 		currenthour = str(datetime.now().hour)
-		currenthour = "15"
 		if len(sortedkeys)>0:
 			if currenthour <= sortedkeys[0]:
 				pass
@@ -71,9 +73,8 @@ class BusSchedule:
 					if key[0:2] < currenthour:
 						sortedkeys = sortedkeys[1:]
 						sortedkeys.append(key)
-		
 		if self.table:
-			table = PrettyTable(['Godzina', 'Linie'])
+			table = PrettyTable(['Godzina', 'Linia'])
 			for key in sortedkeys:
 				if self.bus in timetable[key] or self.bus == False:
 					table.add_row([key, ', '.join(timetable[key])])
@@ -97,25 +98,63 @@ class BusSchedule:
 			trams.append(tram.text)
 		return {"buses":buses, "trams":trams}
 		
-	def setBus(self, bus):
-		self.bus=bus.upper()
+	def setBus(self, bus="printschedule"):
+		if not bus == "printschedule": 
+			self.bus=bus.upper()
 		buslist = self.takeBusList()
 		if self.bus in buslist["buses"]:
 			self.bustype="bus"
 			return 0
 		elif self.bus in buslist["trams"]:
-			self.bustuype="tram"
+			self.bustype="tram"
 			return 0
 		else:
-			print("Nie ma takiej lini!")
-			sys.exit()
+			if not bus == "printschedule":
+				print("Nie ma takiej lini!")
+			print("Dostępne linie:\n\n\tTramwajowe:\n{}\n\n\tAutobusowe:\n{}" \
+				  .format(', '.join(buslist["trams"]), ', '.join(buslist["buses"])))
+			return 2
+	def listPosts(self):
+		postlist = rq.urlopen("http://www.wroclaw.pl/wszystkie-przystanki-wydruk")
+		recoveryon = etree.XMLParser(recover=True)
+		tree = etree.parse(postlist, recoveryon)
+		root = tree.getroot()
+		posts = []
+		for post in root.xpath('//ul[@class="filtered-lines-list"]/li/a'):
+			posts.append([post.text, post.attrib["href"]])
+		return posts
 		
-	def setPost(self, post):
+	def fethPost(self, post):
+		print(post)
+		return 0
+		
+	def setPost(self, post="printposts"):
 		try:
-			post=int(post)
+			intpost=int(post)
+			if len(post)>=1 and len(post)<=3:
+				noid = True
+				postlist = self.listPosts()
+				for idx, postel in enumerate(postlist): 
+					if idx == intpost:
+						self.fethPost(postel[1])
+						noid = False
+						break						
+				if noid:
+					print("Nie ma przystanku o danym ID.")
+			else:
+				self.post=post	
 		except:
-			return 1
-		self.post=post
+			postlist = self.listPosts()
+			if not post == "printposts":
+				post = post.upper()
+				for idx, postel in enumerate(postlist): 
+					if post in postel.upper():
+						print("{:5} - {:>40}".format(idx, postel[0]))
+			elif post == "printposts":	
+				for idx, postel in enumerate(postlist): 
+					print("{:5} - {:>40}".format(idx, postel[0]))
+			elif post:
+				pass
 		return 0
 			
 	def setTable(self):
@@ -130,9 +169,8 @@ def printHelp():
 	return 0
 
 
-	
 if __name__ == "__main__":
-	www = BusSchedule("http://komunikacja.iwroclaw.pl/Rozklad_jazdy_slupek_{}_Wroclaw", 11524, False, True)
+	www = BusSchedule("http://komunikacja.iwroclaw.pl/Rozklad_jazdy_slupek_{}_Wroclaw", 11524, False)
 	# wwww = open('plik.html', "rb")
 	for idx, arg in enumerate(sys.argv):
 		if idx==0:
@@ -151,17 +189,20 @@ if __name__ == "__main__":
 				break 
 			if arg in options.keys():
 				try:
-					if options[arg](sys.argv[idx+1]) == 1:
-						needhelp = True
-						break
+					if sys.argv[idx+1] in options.keys():
+						raise
+					RC = options[arg](sys.argv[idx+1])
 				except: 
 					try:
-						if options[arg]() == 1:
-							needhelp = True
-							break
+						RC = options[arg]()
 					except:
 						needhelp = True
 						break
+				if RC == 1:
+					needhelp = True
+					break
+				elif RC == 2:
+					sys.exit(0)
 			elif sys.argv[idx-1] in options.keys():
 				if sys.argv[idx-1] == "-nt" or \
 				   sys.argv[idx-1] == "--notable":
@@ -179,5 +220,3 @@ if __name__ == "__main__":
 		d = www.takeSchedule(wwww,"'first col_godzina'","'linia_autobus_bez_ikony'")
 		www.printSchedule(d)
 		
-		
-	
