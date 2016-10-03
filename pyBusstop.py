@@ -10,59 +10,68 @@ classnumber = "'linia_autobus_bez_ikony'"
 needhelp = False
 
 class BusSchedule:
-	def __init__(self, url=0, post=0, bus=0, table=True):
+	def __init__(self, url="0", post="0", bus="0", table=True):
 		self.url=url
 		self.post=post
 		self.bus=bus
 		self.table=table
 		
-	def fethUrl(self):
-		return rq.urlopen(self.url.replace("{}", str(self.post)))
+	def fethUrl(self, post):
+		return rq.urlopen(self.url.replace("{}", post))
 		
-	def takeSchedule(self, url, classtime, classnumber):
-		recoveryon = etree.XMLParser(recover=True)
-		tree = etree.parse(url, recoveryon)
-		root = tree.getroot()
-		
-		lefttimes, buses = [], []
-		
-		for lefttime in root.xpath('//td[@class={}]'.format(classtime)):
-			lefttime = lefttime.text
-			if len(lefttime) == 4:
-				lefttimes.append("0"+lefttime)
+	def takeSchedule(self, classtime, classnumber):
+		poststr = False
+		for postint in self.post:
+			if type(self.post)==str:
+				poststr=True
+				url = self.fethUrl(self.post)
 			else:
-				lefttimes.append(lefttime)
-		for bus in root.xpath('//a[@class={}]'.format(classnumber)):
-			buses.append(bus.text.lstrip('\t\n'))
+				url = self.fethUrl(postint)
+			recoveryon = etree.XMLParser(recover=True)
+			tree = etree.parse(url, recoveryon)
+			root = tree.getroot()
+			
+			lefttimes, buses = [], []
+			
+			for lefttime in root.xpath('//td[@class={}]'.format(classtime)):
+				lefttime = lefttime.text
+				if len(lefttime) == 4:
+					lefttimes.append("0"+lefttime)
+				else:
+					lefttimes.append(lefttime)
+			for bus in root.xpath('//td[@class={}]/a'.format(classnumber)):
+				buses.append(bus.text.lstrip('\t\n'))
+			backup = list(zip(lefttimes, buses))
 
-		backup = list(zip(lefttimes, buses))
+			#budowanie słownika na podstawie listy
+			timetable = {k:[] for k in lefttimes}
+			for i in backup:
+				value = timetable[i[0]]
+				value.append(i[1])
+				timetable[i[0]]=value
 
-		#budowanie słownika na podstawie listy
-		timetable = {k:[] for k in lefttimes}
-		for i in backup:
-			value = timetable[i[0]]
-			value.append(i[1])
-			timetable[i[0]]=value
-
-		#czyszczenie powtórzeń w słowniku
-		for key in timetable.keys():
-			timetable[key]=list(set(timetable[key]))
-		
-		return timetable
+			#czyszczenie powtórzeń w słowniku
+			for key in timetable.keys():
+				timetable[key]=sorted(list(set(timetable[key])))
+			if poststr:
+				self.printSchedule(timetable, self.post)
+				break
+			self.printSchedule(timetable, postint)
+		return 0
 	
 	def headPrint(func):
-		def wrap(self, timetable):
+		def wrap(self, timetable, post):
 			if self.bus is not False:
 				print("Rozkład jazdy komunikacji miejskiej z przystanku o numerze: {:^10} \n \
-					  \nFiltr dla lini: {:>5}\n".format(self.post, self.bus))
+					  \nFiltr dla lini: {:>5}\n".format(post, self.bus))
 			else: 
 				print("Rozkład jazdy komunikacji miejskiej z przystanku o numerze: {:^10}\n" \
-					  .format(self.post))
-			return func(self, timetable)
+					  .format(post))
+			return func(self, timetable, post)
 		return wrap
 		
 	@headPrint
-	def printSchedule(self, timetable):
+	def printSchedule(self, timetable, post):
 		sortedkeys = sorted(timetable)
 		currenthour = str(datetime.now().hour)
 		if len(sortedkeys)>0:
@@ -114,7 +123,8 @@ class BusSchedule:
 			print("Dostępne linie:\n\n\tTramwajowe:\n{}\n\n\tAutobusowe:\n{}" \
 				  .format(', '.join(buslist["trams"]), ', '.join(buslist["buses"])))
 			return 2
-	def listPosts(self):
+		
+	def listPostsNames(self):
 		postlist = rq.urlopen("http://www.wroclaw.pl/wszystkie-przystanki-wydruk")
 		recoveryon = etree.XMLParser(recover=True)
 		tree = etree.parse(postlist, recoveryon)
@@ -124,27 +134,38 @@ class BusSchedule:
 			posts.append([post.text, post.attrib["href"]])
 		return posts
 		
-	def fethPost(self, post):
-		print(post)
-		return 0
+	def fethPost(self, url):
+		urllist = rq.urlopen(url)
+		recoveryon = etree.XMLParser(recover=True)
+		tree = etree.parse(urllist, recoveryon)
+		root = tree.getroot()
+		postids = []
+		for postid in root.xpath('//tbody/tr/td'):
+			try:
+				intpostid = int(postid.text)
+				postids.append(postid.text)
+			except:
+				pass
+		return sorted(list(set(postids)))
 		
 	def setPost(self, post="printposts"):
 		try:
-			intpost=int(post)
+			intpost = int(post)
 			if len(post)>=1 and len(post)<=3:
 				noid = True
-				postlist = self.listPosts()
+				postlist = self.listPostsNames()
 				for idx, postel in enumerate(postlist): 
 					if idx == intpost:
-						self.fethPost(postel[1])
+						posts = self.fethPost("http://www.wroclaw.pl"+postel[1]+"-wydruk")
+						self.post = posts
 						noid = False
-						break						
+						break
 				if noid:
 					print("Nie ma przystanku o danym ID.")
 			else:
 				self.post=post	
 		except:
-			postlist = self.listPosts()
+			postlist = self.listPostsNames()
 			if not post == "printposts":
 				post = post.upper()
 				for idx, postel in enumerate(postlist): 
@@ -170,7 +191,7 @@ def printHelp():
 
 
 if __name__ == "__main__":
-	www = BusSchedule("http://komunikacja.iwroclaw.pl/Rozklad_jazdy_slupek_{}_Wroclaw", 11524, False)
+	www = BusSchedule("http://komunikacja.iwroclaw.pl/Rozklad_jazdy_slupek_{}_Wroclaw", "11524", False)
 	# wwww = open('plik.html', "rb")
 	for idx, arg in enumerate(sys.argv):
 		if idx==0:
@@ -212,11 +233,7 @@ if __name__ == "__main__":
 			else:
 				needhelp = True
 				break
-		
 	if needhelp:
 		printHelp()
 	else:
-		wwww = www.fethUrl()
-		d = www.takeSchedule(wwww,"'first col_godzina'","'linia_autobus_bez_ikony'")
-		www.printSchedule(d)
-		
+		www.takeSchedule("'first col_godzina'","'col_linie_bez_ikony'")
