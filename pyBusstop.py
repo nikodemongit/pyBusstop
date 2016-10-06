@@ -10,8 +10,9 @@ classnumber = "'linia_autobus_bez_ikony'"
 needhelp = False
 
 class BusSchedule:
-	def __init__(self, url="0", post="0", bus="0", table=True):
+	def __init__(self, url="0", name="0", post="0", bus="0", table=True):
 		self.url=url
+		self.name=name
 		self.post=post
 		self.bus=bus
 		self.table=table
@@ -21,6 +22,7 @@ class BusSchedule:
 		
 	def takeSchedule(self, classtime, classnumber):
 		poststr = False
+		lefttimes, buses = [], []
 		for postint in self.post:
 			if type(self.post)==str:
 				poststr=True
@@ -30,9 +32,7 @@ class BusSchedule:
 			recoveryon = etree.XMLParser(recover=True)
 			tree = etree.parse(url, recoveryon)
 			root = tree.getroot()
-			
-			lefttimes, buses = [], []
-			
+			self.name = root.xpath('//span[@id="przyst_nazwa"]/em')[0].text
 			for lefttime in root.xpath('//td[@class={}]'.format(classtime)):
 				lefttime = lefttime.text
 				if len(lefttime) == 4:
@@ -62,11 +62,11 @@ class BusSchedule:
 	def headPrint(func):
 		def wrap(self, timetable, post):
 			if self.bus is not False:
-				print("Rozkład jazdy komunikacji miejskiej z przystanku o numerze: {:^10} \n \
-					  \nFiltr dla lini: {:>5}\n".format(post, self.bus))
+				print("Rozkład jazdy komunikacji miejskiej z przystanku {} o numerze: {:^10} \n \
+					  \nFiltr dla lini: {:>5}\n".format(self.name, post, self.bus))
 			else: 
-				print("Rozkład jazdy komunikacji miejskiej z przystanku o numerze: {:^10}\n" \
-					  .format(post))
+				print("Rozkład jazdy komunikacji miejskiej z przystanku {} o numerze: {:^10}\n" \
+					  .format(self.name, post))
 			return func(self, timetable, post)
 		return wrap
 		
@@ -191,7 +191,7 @@ def printHelp():
 
 
 if __name__ == "__main__":
-	www = BusSchedule("http://komunikacja.iwroclaw.pl/Rozklad_jazdy_slupek_{}_Wroclaw", "11524", False)
+	www = BusSchedule(url="http://komunikacja.iwroclaw.pl/Rozklad_jazdy_slupek_{}_Wroclaw", post="11524", table=True, bus=False)
 	# wwww = open('plik.html', "rb")
 	for idx, arg in enumerate(sys.argv):
 		if idx==0:
