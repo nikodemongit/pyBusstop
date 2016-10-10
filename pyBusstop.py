@@ -22,8 +22,8 @@ class BusSchedule:
 		
 	def takeSchedule(self, classtime, classnumber):
 		poststr = False
-		lefttimes, buses = [], []
 		for postint in self.post:
+			lefttimes, buses, directions = [], [], []
 			if type(self.post)==str:
 				poststr=True
 				url = self.fethUrl(self.post)
@@ -39,9 +39,17 @@ class BusSchedule:
 					lefttimes.append("0"+lefttime)
 				else:
 					lefttimes.append(lefttime)
-			for bus in root.xpath('//td[@class={}]/a'.format(classnumber)):
-				buses.append(bus.text.lstrip('\t\n'))
-			backup = list(zip(lefttimes, buses))
+			bustable = root.xpath('//table[@id="stop_table"]/tbody/tr/td/a')
+			for a, bus in enumerate(bustable):
+				if len(bus.text.strip('\t\n')) == 0:
+					bustable.pop(a)
+			for a, bus in enumerate(bustable):
+				if a % 2 == 0:
+					buses.append(bus.text.lstrip('\t\n'))
+				else:
+					directions.append(bus.text)
+			busdir = zip(buses, directions)
+			backup = list(zip(lefttimes, busdir))
 
 			#budowanie słownika na podstawie listy
 			timetable = {k:[] for k in lefttimes}
@@ -83,18 +91,20 @@ class BusSchedule:
 						sortedkeys = sortedkeys[1:]
 						sortedkeys.append(key)
 		if self.table:
-			table = PrettyTable(['Godzina', 'Linia'])
+			table = PrettyTable(['Godzina', 'Linia', 'Kierunek'])
 			for key in sortedkeys:
-				if self.bus in timetable[key] or self.bus == False:
-					table.add_row([key, ', '.join(timetable[key])])
+				for bus in timetable[key]:
+					if self.bus in bus or self.bus == False:
+						table.add_row([key, bus[0], bus[1]])
 			print(table)
 		else:
 			for key in sortedkeys:
-				if self.bus in timetable[key] or self.bus == False:
-					print(" {:10} - {:>10}".format(key, ', '.join(timetable[key])))
+				for bus in timetable[key]:
+					if self.bus in bus or self.bus == False:
+						print(" {:5} - {:^5} - {:5}".format(key, bus[0], bus[1]))
 		return 0
 		
-	def	takeBusList(self):
+	def takeBusList(self):
 		buslist = rq.urlopen("http://komunikacja.iwroclaw.pl/Rozklady_jazdy_MPK_we_Wroclawiu")
 		recoveryon = etree.XMLParser(recover=True)
 		tree = etree.parse(buslist, recoveryon)
@@ -169,9 +179,9 @@ class BusSchedule:
 			if not post == "printposts":
 				post = post.upper()
 				for idx, postel in enumerate(postlist): 
-					if post in postel.upper():
+					if post in str(postel).upper():
 						print("{:5} - {:>40}".format(idx, postel[0]))
-			elif post == "printposts":	
+			elif post == "printposts":
 				for idx, postel in enumerate(postlist): 
 					print("{:5} - {:>40}".format(idx, postel[0]))
 			elif post:
