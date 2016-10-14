@@ -171,11 +171,29 @@ class BusSchedule:
 						break
 				if noid:
 					print("Nie ma przystanku o danym ID.")
+					return 2
 			else:
 				self.post=post
 		except:
 			postlist = self.listPostsNames()
-			if not post == "printposts":
+			if len(post) == 1:
+				post = post.upper()
+				print("Lista przystanków zaczynających się na literę '{}':".format(post))
+				for idx, postel in enumerate(postlist): 
+					postel[0].lstrip('\t\n')
+					if postel[0][0].upper()==post:
+						print("{:5} - {:>40}".format(idx, postel[0]))
+						if idx % 25 == 24:
+							print("kliknij 'Q' aby wyjść, lub dowolny klawisz, aby pokazać resztę dostępnych przystanków.")
+							if sys.platform.startswith("win"):
+								import msvcrt
+								x = msvcrt.getch()
+							else:
+								import getch
+								x = getch.getch()
+							if x.upper() == "Q":
+								break
+			elif not post == "printposts":
 				post = post.upper()
 				for idx, postel in enumerate(postlist): 
 					if post in str(postel).upper():
@@ -193,8 +211,6 @@ class BusSchedule:
 							x = getch.getch()
 						if x.upper() == "Q":
 							break
-			elif post:
-				pass
 			return 2
 		return 0
 			
