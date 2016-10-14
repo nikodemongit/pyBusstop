@@ -6,7 +6,6 @@ from prettytable import PrettyTable
 from datetime import datetime
 
 classtime = "'first col_godzina'"
-classnumber = "'linia_autobus_bez_ikony'"
 needhelp = False
 
 class BusSchedule:
@@ -20,7 +19,7 @@ class BusSchedule:
 	def fethUrl(self, post):
 		return rq.urlopen(self.url.replace("{}", post))
 		
-	def takeSchedule(self, classtime, classnumber):
+	def takeSchedule(self, classtime):
 		poststr = False
 		for postint in self.post:
 			lefttimes, buses, directions = [], [], []
@@ -173,7 +172,7 @@ class BusSchedule:
 				if noid:
 					print("Nie ma przystanku o danym ID.")
 			else:
-				self.post=post	
+				self.post=post
 		except:
 			postlist = self.listPostsNames()
 			if not post == "printposts":
@@ -182,10 +181,21 @@ class BusSchedule:
 					if post in str(postel).upper():
 						print("{:5} - {:>40}".format(idx, postel[0]))
 			elif post == "printposts":
-				for idx, postel in enumerate(postlist): 
+				for idx, postel in enumerate(postlist):
 					print("{:5} - {:>40}".format(idx, postel[0]))
+					if idx % 25 == 24:
+						print("kliknij 'Q' aby wyjść, lub dowolny klawisz, aby pokazać resztę dostępnych przystanków.")
+						if sys.platform.startswith("win"):
+							import msvcrt
+							x = msvcrt.getch()
+						else:
+							import getch
+							x = getch.getch()
+						if x.upper() == "Q":
+							break
 			elif post:
 				pass
+			return 2
 		return 0
 			
 	def setTable(self):
@@ -246,4 +256,4 @@ if __name__ == "__main__":
 	if needhelp:
 		printHelp()
 	else:
-		www.takeSchedule("'first col_godzina'","'col_linie_bez_ikony'")
+		www.takeSchedule("'first col_godzina'")
