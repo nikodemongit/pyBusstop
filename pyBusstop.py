@@ -9,12 +9,13 @@ classtime = "'first col_godzina'"
 needhelp = False
 
 class BusSchedule:
-	def __init__(self, url="0", name="0", post="0", bus="0", table=True):
+	def __init__(self, url="0", name="0", post="0", bus="0", table=True, canary=False):
 		self.url=url
 		self.name=name
 		self.post=post
 		self.bus=bus
 		self.table=table
+		self.canary=canary
 		
 	def fethUrl(self, post):
 		return rq.urlopen(self.url.replace("{}", post))
@@ -217,10 +218,27 @@ class BusSchedule:
 	def setTable(self):
 		if self.table:
 			self.table = False
-		else: 
+		else:
 			self.table = True
 		return 0
-		
+	
+	def setCanary(self):
+		if self.canary:
+			self.canary = False
+		else:
+			self.canary = True
+		return 0
+	
+	def fetchCanary(self)
+		canary = rq.urlopen("http://www.wroclaw.pl/kontrola-biletow-mpk-wroclaw-gdzie-sa-dzisiaj-kontrole")
+		recoveryon = etree.XMLParser(recover=True)
+		tree = etree.parse(canary, recoveryon)
+		root = tree.getroot()
+		canares = []
+		for canary in root.xpath('//ul[@class="filtered-lines-list"]/li/a'):
+			canares.append([canary.text, canary.attrib["href"]])
+		return canares
+	
 def printHelp():
 	print("help")
 	return 0
@@ -238,6 +256,7 @@ if __name__ == "__main__":
 			"--bus" : www.setBus,
 			"-p" : www.setPost,
 			"--post" : www.setPost,
+			"-c" : www.setCanary,
 			"-nt" : www.setTable,
 			"--notable" : www.setTable
 			}
@@ -262,7 +281,8 @@ if __name__ == "__main__":
 					sys.exit(0)
 			elif sys.argv[idx-1] in options.keys():
 				if sys.argv[idx-1] == "-nt" or \
-				   sys.argv[idx-1] == "--notable":
+				   sys.argv[idx-1] == "--notable" or \
+				   sys.argv[idx-1] == "-c":
 					needhelp = True
 					break
 				pass
