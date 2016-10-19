@@ -1,9 +1,11 @@
 #pyBusstop.py
 import sys
+import os
 import urllib.request as rq
 from lxml import etree
 from prettytable import PrettyTable
 from datetime import datetime
+import pickle
 
 classtime = "'first col_godzina'"
 needhelp = False
@@ -229,7 +231,7 @@ class BusSchedule:
 			self.canary = True
 		return 0
 	
-	def fetchCanary(self)
+	def fetchCanary(self):
 		canary = rq.urlopen("http://www.wroclaw.pl/kontrola-biletow-mpk-wroclaw-gdzie-sa-dzisiaj-kontrole")
 		recoveryon = etree.XMLParser(recover=True)
 		tree = etree.parse(canary, recoveryon)
@@ -243,9 +245,35 @@ def printHelp():
 	print("help")
 	return 0
 
+def setFav(post="List Favorites"):
+	with open('favorites.dat', 'rb') as f:
+		favPosts = pickle.load(f)
+	if post == "List Favorites":
+		table = PrettyTable(['LP', 'Opis przystanku', 'Numer przystanku'])
+		for idx, key in enumerate(sorted(favPosts.keys())):
+			table.add_row([idx+1, key, favPosts[key]])
+		print(table)
+	return 2
 
 if __name__ == "__main__":
-	www = BusSchedule(url="http://komunikacja.iwroclaw.pl/Rozklad_jazdy_slupek_{}_Wroclaw", post="11524", table=True, bus=False)
+	resetFav= False
+	favPosts = {
+	"z pracy" : "12149",
+	"tramwajowa do Rynku" : "11454",
+	"tramwajowa do FAT" : "11453",
+	"autobusowa do Powstańców" : "12149",
+	"136 do Pracy" : "11553",
+	"z kruczej do JP2" : "11536",
+	"z kruczej do Arkad" : "11522"
+	}
+	if os.path.isfile("favorites.dat") or resetFav:
+		with open("favorites.dat", "wb") as f:
+			pickle.dump(favPosts, f, pickle.HIGHEST_PROTOCOL)
+	else:
+		with open('favorites.dat', 'rb') as f:
+			favPosts = pickle.load(f)
+	anotherPost = False
+	www = BusSchedule(url="http://komunikacja.iwroclaw.pl/Rozklad_jazdy_slupek_{}_Wroclaw", table=True, bus=False)
 	# wwww = open('plik.html', "rb")
 	for idx, arg in enumerate(sys.argv):
 		if idx==0:
@@ -257,12 +285,16 @@ if __name__ == "__main__":
 			"-p" : www.setPost,
 			"--post" : www.setPost,
 			"-c" : www.setCanary,
+			"-f" : setFav,
+			"--favorite" : setFav,
 			"-nt" : www.setTable,
 			"--notable" : www.setTable
 			}
 			if "-h" in sys.argv or "--help" in sys.argv:
 				needhelp = True
 				break 
+			elif "-p" in sys.argv or "--post" in sys.argv:
+				anotherPost = True
 			if arg in options.keys():
 				try:
 					if sys.argv[idx+1] in options.keys():
@@ -292,4 +324,10 @@ if __name__ == "__main__":
 	if needhelp:
 		printHelp()
 	else:
-		www.takeSchedule("'first col_godzina'")
+		if anotherPost:
+			www.takeSchedule("'first col_godzina'")
+		else:
+			for post in sorted(favPosts.keys()):
+				print("Komunikacja {}:".format(post))
+				www.post=favPosts[post]
+				www.takeSchedule("'first col_godzina'")
