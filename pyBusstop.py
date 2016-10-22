@@ -315,7 +315,6 @@ if __name__ == "__main__":
 		if idx==0:
 			pass
 		elif idx==1 and arg not in options:
-			print("dupa")
 			needhelp = True
 			break
 		else:
