@@ -11,7 +11,7 @@ classtime = "'first col_godzina'"
 needhelp = False
 
 class BusSchedule:
-	def __init__(self, url="0", name="0", post="0", bus="0", table=True, canary=False):
+	def __init__(self, url="0", name="0", post="0", bus=False, table=True, canary=False):
 		self.url=url
 		self.name=name
 		self.post=post
@@ -73,7 +73,7 @@ class BusSchedule:
 		def wrap(self, timetable, post):
 			if self.bus is not False:
 				print("Rozkład jazdy komunikacji miejskiej z przystanku {} o numerze: {:^10} \n \
-					  \nFiltr dla lini: {:>5}\n".format(self.name, post, self.bus))
+					  \nFiltr dla lini: {:>5}\n".format(self.name, post, ", ".join(self.bus)))
 			else: 
 				print("Rozkład jazdy komunikacji miejskiej z przystanku {} o numerze: {:^10}\n" \
 					  .format(self.name, post))
@@ -96,14 +96,22 @@ class BusSchedule:
 			table = PrettyTable(['Godzina', 'Linia', 'Kierunek'])
 			for key in sortedkeys:
 				for bus in timetable[key]:
-					if self.bus in bus or self.bus == False:
+					if self.bus == False:
 						table.add_row([key, bus[0], bus[1]])
+					else:
+						for argbus in self.bus:
+							if argbus in bus:
+								table.add_row([key, bus[0], bus[1]])
 			print(table)
 		else:
 			for key in sortedkeys:
 				for bus in timetable[key]:
-					if self.bus in bus or self.bus == False:
+					if self.bus == False:
 						print(" {:5} - {:^5} - {:5}".format(key, bus[0], bus[1]))
+					else:
+						for argbus in self.bus:
+							if argbus in bus:
+								print(" {:5} - {:^5} - {:5}".format(key, bus[0], bus[1]))
 		return 0
 		
 	def takeBusList(self):
@@ -119,22 +127,26 @@ class BusSchedule:
 			trams.append(tram.text)
 		return {"buses":buses, "trams":trams}
 		
-	def setBus(self, bus="printschedule"):
-		if not bus == "printschedule": 
-			self.bus=bus.upper()
+	def setBus(self, *bus):
 		buslist = self.takeBusList()
-		if self.bus in buslist["buses"]:
-			self.bustype="bus"
-			return 0
-		elif self.bus in buslist["trams"]:
-			self.bustype="tram"
-			return 0
-		else:
-			if not bus == "printschedule":
-				print("Nie ma takiej lini!")
+		if not bus:
 			print("Dostępne linie:\n\n\tTramwajowe:\n{}\n\n\tAutobusowe:\n{}" \
-				  .format(', '.join(buslist["trams"]), ', '.join(buslist["buses"])))
+				.format(', '.join(buslist["trams"]), ', '.join(buslist["buses"])))
 			return 2
+		if not bus == "printschedule": 
+			bus=[x.upper() for x in bus]
+			self.bus=bus
+		for argbus in self.bus:
+			if argbus in buslist["buses"]:
+				self.bustype="bus"
+			elif argbus in buslist["trams"]:
+				self.bustype="tram"
+			else:
+				print("Nie ma takiej lini!")
+				print("Dostępne linie:\n\n\tTramwajowe:\n{}\n\n\tAutobusowe:\n{}" \
+					.format(', '.join(buslist["trams"]), ', '.join(buslist["buses"])))
+				return 2
+		return 0
 		
 	def listPostsNames(self):
 		postlist = rq.urlopen("http://www.wroclaw.pl/wszystkie-przystanki-wydruk")
@@ -160,7 +172,13 @@ class BusSchedule:
 				pass
 		return sorted(list(set(postids)))
 		
-	def setPost(self, post="printposts"):
+	def setPost(self, *post):
+		if not post:
+			post="printposts"
+		elif len(post) > 1:
+			return 1
+		else:
+			post=post[0]
 		try:
 			intpost = int(post)
 			if len(post)>=1 and len(post)<=3:
@@ -217,14 +235,18 @@ class BusSchedule:
 			return 2
 		return 0
 			
-	def setTable(self):
+	def setTable(self, *params):
+		if params:
+			return 1
 		if self.table:
 			self.table = False
 		else:
 			self.table = True
 		return 0
 	
-	def setCanary(self):
+	def setCanary(self, *params):
+		if params:
+			return 1
 		if self.canary:
 			self.canary = False
 		else:
@@ -266,61 +288,65 @@ if __name__ == "__main__":
 	"z kruczej do JP2" : "11536",
 	"z kruczej do Arkad" : "11522"
 	}
-	if os.path.isfile("favorites.dat") or resetFav:
+	if not os.path.isfile("favorites.dat") or resetFav:
 		with open("favorites.dat", "wb") as f:
 			pickle.dump(favPosts, f, pickle.HIGHEST_PROTOCOL)
 	else:
 		with open('favorites.dat', 'rb') as f:
 			favPosts = pickle.load(f)
 	anotherPost = False
-	www = BusSchedule(url="http://komunikacja.iwroclaw.pl/Rozklad_jazdy_slupek_{}_Wroclaw", table=True, bus=False)
+	www = BusSchedule(url="http://komunikacja.iwroclaw.pl/Rozklad_jazdy_slupek_{}_Wroclaw", table=True)
 	# wwww = open('plik.html', "rb")
+	options = {
+	"-b" : www.setBus,
+	"--bus" : www.setBus,
+	"-p" : www.setPost,
+	"--post" : www.setPost,
+	"-c" : www.setCanary,
+	"-f" : setFav,
+	"--favorite" : setFav,
+	"-nt" : www.setTable,
+	"--notable" : www.setTable
+	}
+	option = False
+	arguments = []
+	RC = 0
 	for idx, arg in enumerate(sys.argv):
 		if idx==0:
 			pass
+		elif idx==1 and arg not in options:
+			print("dupa")
+			needhelp = True
+			break
 		else:
-			options = {
-			"-b" : www.setBus,
-			"--bus" : www.setBus,
-			"-p" : www.setPost,
-			"--post" : www.setPost,
-			"-c" : www.setCanary,
-			"-f" : setFav,
-			"--favorite" : setFav,
-			"-nt" : www.setTable,
-			"--notable" : www.setTable
-			}
 			if "-h" in sys.argv or "--help" in sys.argv:
 				needhelp = True
 				break 
-			elif "-p" in sys.argv or "--post" in sys.argv:
+			if "-p" in sys.argv or "--post" in sys.argv:
 				anotherPost = True
-			if arg in options.keys():
-				try:
-					if sys.argv[idx+1] in options.keys():
-						raise
-					RC = options[arg](sys.argv[idx+1])
-				except: 
-					try:
-						RC = options[arg]()
-					except:
-						needhelp = True
-						break
-				if RC == 1:
-					needhelp = True
-					break
-				elif RC == 2:
-					sys.exit(0)
-			elif sys.argv[idx-1] in options.keys():
-				if sys.argv[idx-1] == "-nt" or \
-				   sys.argv[idx-1] == "--notable" or \
-				   sys.argv[idx-1] == "-c":
-					needhelp = True
-					break
-				pass
+			if arg in options and option == False:
+				option=arg
+				if idx == len(sys.argv)-1 and arg in options:
+					RC = options[option]()
+			elif arg in options or idx == len(sys.argv)-1:
+				if arg not in options and idx == len(sys.argv)-1:
+					arguments.append(arg)
+				if arguments == []:
+					RC = options[option]()
+					option = arg
+				else:
+					RC = options[option](*arguments)
+					arguments=[]
+					option = arg
 			else:
+				arguments.append(arg)
+			if idx == len(sys.argv)-1 and arg in options:
+				RC = options[option]()
+			if RC == 1:
 				needhelp = True
 				break
+			elif RC == 2:
+				sys.exit(0)
 	if needhelp:
 		printHelp()
 	else:
