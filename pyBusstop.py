@@ -279,10 +279,8 @@ def setFav(*post):
 	"z kruczej do Arkad" : "11522"
 	}
 	if not post:
-		post="List Favorites"
 		with open('favorites.dat', 'rb') as f:
 			favPosts = pickle.load(f)
-	if post == "List Favorites":
 		table = PrettyTable(['LP', 'Opis przystanku', 'Numer przystanku'])
 		for idx, key in enumerate(sorted(favPosts.keys())):
 			table.add_row([idx+1, key, favPosts[key]])
@@ -306,20 +304,30 @@ def setFav(*post):
 		with open("favorites.dat", "wb") as f:
 			pickle.dump(favPosts, f, pickle.HIGHEST_PROTOCOL)
 		return 2
-	if post[0].upper() in ("REM", "REMOVE", "DEL", "DELETE") and len(post) == 2:
+	if post[0].upper() in ("REM", "REMOVE", "DEL", "DELETE"):
 		with open('favorites.dat', 'rb') as f:
 			favPosts = pickle.load(f)
-		for idx, key in enumerate(sorted(favPosts.keys())):
-			if idx+1 == int(post[1]):
-				del favPosts[key]
-				with open("favorites.dat", "wb") as f:
-					pickle.dump(favPosts, f, pickle.HIGHEST_PROTOCOL)
+		for arg in post[1:]:
+			if not arg.isdigit():
+				return 1
+		removed = False
+		postSorted=sorted(post[1:])
+		for arg in postSorted[::-1]:
+			for idx, key in enumerate(sorted(favPosts.keys())):
+				if idx+1 == int(arg):
+					del favPosts[key]
+					removed = True
+					break
+				if arg == favPosts[key]:
+					del favPosts[key]
+					removed = True
+					break
+		if removed:
+			with open("favorites.dat", "wb") as f:
+				pickle.dump(favPosts, f, pickle.HIGHEST_PROTOCOL)
 				return 2
-			if post[1] == favPosts[key]:
-				del favPosts[key]
-				with open("favorites.dat", "wb") as f:
-					pickle.dump(favPosts, f, pickle.HIGHEST_PROTOCOL)
-				return 2
+		else:
+			return 2
 	else:
 		return 1
 
