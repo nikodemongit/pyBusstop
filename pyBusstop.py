@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 #pyBusstop.py
 import sys
 import os
@@ -267,18 +268,7 @@ def printHelp():
 	print("help")
 	return 0
 
-def setFav(post="List Favorites"):
-	with open('favorites.dat', 'rb') as f:
-		favPosts = pickle.load(f)
-	if post == "List Favorites":
-		table = PrettyTable(['LP', 'Opis przystanku', 'Numer przystanku'])
-		for idx, key in enumerate(sorted(favPosts.keys())):
-			table.add_row([idx+1, key, favPosts[key]])
-		print(table)
-	return 2
-
-if __name__ == "__main__":
-	resetFav= False
+def setFav(*post):
 	favPosts = {
 	"z pracy" : "12149",
 	"tramwajowa do Rynku" : "11454",
@@ -288,12 +278,56 @@ if __name__ == "__main__":
 	"z kruczej do JP2" : "11536",
 	"z kruczej do Arkad" : "11522"
 	}
-	if not os.path.isfile("favorites.dat") or resetFav:
-		with open("favorites.dat", "wb") as f:
-			pickle.dump(favPosts, f, pickle.HIGHEST_PROTOCOL)
-	else:
+	if not post:
+		post="List Favorites"
 		with open('favorites.dat', 'rb') as f:
 			favPosts = pickle.load(f)
+	if post == "List Favorites":
+		table = PrettyTable(['LP', 'Opis przystanku', 'Numer przystanku'])
+		for idx, key in enumerate(sorted(favPosts.keys())):
+			table.add_row([idx+1, key, favPosts[key]])
+		print(table)
+		return 2
+	if post[0].upper() == "RESET" and len(post) == 1:
+		with open("favorites.dat", "wb") as f:
+			pickle.dump(favPosts, f, pickle.HIGHEST_PROTOCOL)
+		return 2
+	if post[0].upper() == "ADD" and len(post) == 3 and \
+		len(post[2]) == 5 and post[2].isdigit():
+		with open('favorites.dat', 'rb') as f:
+			favPosts = pickle.load(f)
+		if post[1] in favPosts:
+			print("Już istnieje przystanek '{}'.".format(post[1]))
+			return 2
+		elif post[2] in favPosts.values():
+			print("Już istnieje przystanek o id: '{}'.".format(post[2]))
+			return 2
+		favPosts[post[1]]=post[2]
+		with open("favorites.dat", "wb") as f:
+			pickle.dump(favPosts, f, pickle.HIGHEST_PROTOCOL)
+		return 2
+	if post[0].upper() in ("REM", "REMOVE", "DEL", "DELETE") and len(post) == 2:
+		with open('favorites.dat', 'rb') as f:
+			favPosts = pickle.load(f)
+		for idx, key in enumerate(sorted(favPosts.keys())):
+			if idx+1 == int(post[1]):
+				del favPosts[key]
+				with open("favorites.dat", "wb") as f:
+					pickle.dump(favPosts, f, pickle.HIGHEST_PROTOCOL)
+				return 2
+			if post[1] == favPosts[key]:
+				del favPosts[key]
+				with open("favorites.dat", "wb") as f:
+					pickle.dump(favPosts, f, pickle.HIGHEST_PROTOCOL)
+				return 2
+	else:
+		return 1
+
+if __name__ == "__main__":
+	if not os.path.isfile("favorites.dat"):
+		setFav("reset")
+	with open('favorites.dat', 'rb') as f:
+		favPosts = pickle.load(f)
 	anotherPost = False
 	www = BusSchedule(url="http://komunikacja.iwroclaw.pl/Rozklad_jazdy_slupek_{}_Wroclaw", table=True)
 	# wwww = open('plik.html', "rb")
@@ -339,8 +373,6 @@ if __name__ == "__main__":
 					option = arg
 			else:
 				arguments.append(arg)
-			if idx == len(sys.argv)-1 and arg in options:
-				RC = options[option]()
 			if RC == 1:
 				needhelp = True
 				break
