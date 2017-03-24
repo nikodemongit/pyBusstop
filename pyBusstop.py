@@ -158,7 +158,13 @@ class BusSchedule:
 		return 0
 		
 	def takeBusList(self):
-		buslist = rq.urlopen("http://komunikacja.iwroclaw.pl/Rozklady_jazdy_MPK_we_Wroclawiu")
+		try:
+			buslist = rq.urlopen("http://komunikacja.iwroclaw.pl/Rozklady_jazdy_MPK_we_Wroclawiu")
+		except rq.URLError:
+			print ("Connection error")
+			return 2
+		except:
+			return 2
 		recoveryon = etree.XMLParser(recover=True)
 		tree = etree.parse(buslist, recoveryon)
 		root = tree.getroot()
@@ -172,6 +178,8 @@ class BusSchedule:
 		
 	def setBus(self, *bus):
 		buslist = self.takeBusList()
+		if buslist == 2:
+			return 2
 		if not bus:
 			print("Dostępne linie:\n\n\tTramwajowe:\n{}\n\n\tAutobusowe:\n{}" \
 				.format(', '.join(buslist["trams"]), ', '.join(buslist["buses"])))
@@ -391,7 +399,6 @@ if __name__ == "__main__":
 	arguments.add_argument('-nt', '--notable', action='store_true', help='Wyłącza widok tabelki')
 	arguments.add_argument('-c', '--cannar', action='store_true', help='Sprawdź czy jest zapowiedziana kontrola biletów')
 	
-
 	args = vars(arguments.parse_args())
 	if args['notable']:
 		www.setTable()
