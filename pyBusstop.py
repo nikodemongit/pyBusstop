@@ -7,6 +7,7 @@ from lxml import etree
 from prettytable import PrettyTable
 from datetime import datetime
 import pickle
+import argparse
 
 classtime = "'first col_godzina'"
 needhelp = False
@@ -35,7 +36,13 @@ class BusSchedule:
 			recoveryon = etree.XMLParser(recover=True)
 			tree = etree.parse(url, recoveryon)
 			root = tree.getroot()
-			self.name = root.xpath('//span[@id="przyst_nazwa"]/em')[0].text
+			try:
+				self.name = root.xpath('//span[@id="przyst_nazwa"]/em')[0].text
+			except AttributeError:
+				print ("Connection error")
+				return 2
+			except:
+				return 2
 			for lefttime in root.xpath('//td[@class={}]'.format(classtime)):
 				lefttime = lefttime.text
 				if len(lefttime) == 4:
@@ -53,7 +60,7 @@ class BusSchedule:
 					directions.append(bus.text)
 			busdir = zip(buses, directions)
 			backup = list(zip(lefttimes, busdir))
-
+			
 			#budowanie słownika na podstawie listy
 			timetable = {k:[] for k in lefttimes}
 			for i in backup:
@@ -94,25 +101,60 @@ class BusSchedule:
 						sortedkeys = sortedkeys[1:]
 						sortedkeys.append(key)
 		if self.table:
-			table = PrettyTable(['Godzina', 'Linia', 'Kierunek'])
-			for key in sortedkeys:
-				for bus in timetable[key]:
-					if self.bus == False:
-						table.add_row([key, bus[0], bus[1]])
-					else:
-						for argbus in self.bus:
-							if argbus in bus:
-								table.add_row([key, bus[0], bus[1]])
+			if self.canary:
+				canarylist = self.fetchCanary() 
+				table = PrettyTable(['Godzina', 'Linia', 'Kierunek', 'Kanar'])
+				for key in sortedkeys:
+					for bus in timetable[key]:
+						if self.bus == False:
+							if bus[0] in canarylist:
+								table.add_row([key, bus[0], bus[1], 'X'])
+							else:
+								table.add_row([key, bus[0], bus[1], ''])
+						else:
+							for argbus in self.bus:
+								if argbus in bus:
+									if bus[0] in canarylist:
+										table.add_row([key, bus[0], bus[1], 'X'])
+									else:
+										table.add_row([key, bus[0], bus[1], ''])
+			else:
+				table = PrettyTable(['Godzina', 'Linia', 'Kierunek'])
+				for key in sortedkeys:
+					for bus in timetable[key]:
+						if self.bus == False:
+							table.add_row([key, bus[0], bus[1]])
+						else:
+							for argbus in self.bus:
+								if argbus in bus:
+									table.add_row([key, bus[0], bus[1]])
 			print(table)
 		else:
-			for key in sortedkeys:
-				for bus in timetable[key]:
-					if self.bus == False:
-						print(" {:5} - {:^5} - {:5}".format(key, bus[0], bus[1]))
-					else:
-						for argbus in self.bus:
-							if argbus in bus:
+			if self.canary:
+				canarylist = self.fetchCanary() 
+				for key in sortedkeys:
+					for bus in timetable[key]:
+						if self.bus == False:
+							if bus[0] in canarylist:
+								print(" {:5} - {:^5} - {:5} - {:5}".format(key, bus[0], bus[1], 'X'))
+							else:
 								print(" {:5} - {:^5} - {:5}".format(key, bus[0], bus[1]))
+						else:
+							for argbus in self.bus:
+								if argbus in bus:
+									if bus[0] in canarylist:
+										print(" {:5} - {:^5} - {:5} - {:5}".format(key, bus[0], bus[1], 'X'))
+									else:
+										print(" {:5} - {:^5} - {:5}".format(key, bus[0], bus[1]))
+			else:
+				for key in sortedkeys:
+					for bus in timetable[key]:
+						if self.bus == False:
+							print(" {:5} - {:^5} - {:5}".format(key, bus[0], bus[1]))
+						else:
+							for argbus in self.bus:
+								if argbus in bus:
+									print(" {:5} - {:^5} - {:5}".format(key, bus[0], bus[1]))
 		return 0
 		
 	def takeBusList(self):
@@ -255,25 +297,29 @@ class BusSchedule:
 		return 0
 	
 	def fetchCanary(self):
+		day = datetime.now().day
 		canary = rq.urlopen("http://www.wroclaw.pl/kontrola-biletow-mpk-wroclaw-gdzie-sa-dzisiaj-kontrole")
 		recoveryon = etree.XMLParser(recover=True)
 		tree = etree.parse(canary, recoveryon)
 		root = tree.getroot()
 		canares = []
-		for canary in root.xpath('//ul[@class="filtered-lines-list"]/li/a'):
-			canares.append([canary.text, canary.attrib["href"]])
+		for canary in root.xpath('//div[@class="article_content"]/h3'):
+			if str(day) in canary.text:
+				canary=canary.xpath('following::p[1]')
+				canary=next(iter(canary or []), None)
+				if canary == None:
+					canares.append('Brak Danych')
+				else:
+					canary=canary.text.split(" - ")[1]
+					canares=canary.split(", ")
+				break
 		return canares
 	
-def printHelp():
-	print("help")
-	return 0
-
 def setFav(*post):
 	favPosts = {
 	"z pracy" : "12149",
 	"tramwajowa do Rynku" : "11454",
 	"tramwajowa do FAT" : "11453",
-	"autobusowa do Powstańców" : "12149",
 	"136 do Pracy" : "11553",
 	"z kruczej do JP2" : "11536",
 	"z kruczej do Arkad" : "11522"
@@ -338,61 +384,37 @@ if __name__ == "__main__":
 		favPosts = pickle.load(f)
 	anotherPost = False
 	www = BusSchedule(url="http://komunikacja.iwroclaw.pl/Rozklad_jazdy_slupek_{}_Wroclaw", table=True)
-	# wwww = open('plik.html', "rb")
-	options = {
-	"-b" : www.setBus,
-	"--bus" : www.setBus,
-	"-p" : www.setPost,
-	"--post" : www.setPost,
-	"-c" : www.setCanary,
-	"-f" : setFav,
-	"--favorite" : setFav,
-	"-nt" : www.setTable,
-	"--notable" : www.setTable
-	}
-	option = False
-	arguments = []
-	RC = 0
-	for idx, arg in enumerate(sys.argv):
-		if idx==0:
-			pass
-		elif idx==1 and arg not in options:
-			needhelp = True
-			break
-		else:
-			if "-h" in sys.argv or "--help" in sys.argv:
-				needhelp = True
-				break 
-			if "-p" in sys.argv or "--post" in sys.argv:
-				anotherPost = True
-			if arg in options and option == False:
-				option=arg
-				if idx == len(sys.argv)-1 and arg in options:
-					RC = options[option]()
-			elif arg in options or idx == len(sys.argv)-1:
-				if arg not in options and idx == len(sys.argv)-1:
-					arguments.append(arg)
-				if arguments == []:
-					RC = options[option]()
-					option = arg
-				else:
-					RC = options[option](*arguments)
-					arguments=[]
-					option = arg
-			else:
-				arguments.append(arg)
-			if RC == 1:
-				needhelp = True
-				break
-			elif RC == 2:
-				sys.exit(0)
-	if needhelp:
-		printHelp()
+	arguments = argparse.ArgumentParser(description='Znajdź swój autobus.')
+	arguments.add_argument('-b', '--bus', nargs='*', help='Wywołane bez parametra - pokazuje wszystkie linie; Wywołane z parametrem - filtrowanie lini')
+	arguments.add_argument('-p', '--post', nargs='*', help='Wywołane bez parametra - pokazuje wszystkie przystanki; Wywołane z parametrem - filtrowanie przystanków')
+	arguments.add_argument('-f', '--favorite', nargs='*', help='Wywołane bez parametra - pokazuje liste ulubionyh przystanków; Wywołane z parametrem ADD - dodawanie przystanku; Wywołane z parametrem REM/REMOVE/DEL/DELETE - usuwanie przystanku; Wywołane z parametrem RESET - resetowanie listy do domyślnej')
+	arguments.add_argument('-nt', '--notable', action='store_true', help='Wyłącza widok tabelki')
+	arguments.add_argument('-c', '--cannar', action='store_true', help='Sprawdź czy jest zapowiedziana kontrola biletów')
+	
+
+	args = vars(arguments.parse_args())
+	if args['notable']:
+		www.setTable()
+	if args['cannar']:
+		www.setCanary()
+	if args['bus'] != None:
+		RC = www.setBus(*args['bus'])
+		if RC == 2:
+			sys.exit(0)
+	if args['post'] != None:
+		RC = www.setPost(*args['post'])
+		anotherPost = True
+		if RC == 2:
+			sys.exit(0)
+	if args['favorite'] != None:
+		RC = setFav(*args['favorite'])
+		anotherPost = True
+		if RC == 2:
+			sys.exit(0)
+	if anotherPost:
+		www.takeSchedule("'first col_godzina'")
 	else:
-		if anotherPost:
+		for post in sorted(favPosts.keys()):
+			print("Komunikacja {}:".format(post))
+			www.post=favPosts[post]
 			www.takeSchedule("'first col_godzina'")
-		else:
-			for post in sorted(favPosts.keys()):
-				print("Komunikacja {}:".format(post))
-				www.post=favPosts[post]
-				www.takeSchedule("'first col_godzina'")
